@@ -8,19 +8,6 @@
 # ln -s /group/ctbrowngrp/sourmash-db/wort-manifests/2023-05-31.wort.sqlmf $(pwd)/data/
 ###
 
-wort-sigs is not an option anymore
-need to rethink a more flexible approach without needing much resources
-I think that I should take the existing genbank database and compare it to the 
-new assembly reports (and historic ones) to create a fresh sparkly clean database
-with ftpdirpaths piped directly into an updated database 
-
-1. take clean database script
-2. update to compare to existing database and
-  2a. remove the bad genomes for historic
-  2b. add the new latest genomes from summary
-3. output a log of what has changed
-
-
 import time
 
 DATE = time.strftime("%Y%m%d")
@@ -44,6 +31,7 @@ rule all:
 
 rule build:
     input:
+        expand("data/
         expand("data/genbank-latest-{D}-k{k}.zip", D=DOMAINS, k=KSIZES)
 
 rule check:
@@ -56,18 +44,23 @@ rule tax:
 
 rule download_assembly_summary:
     output:
-        'data/{D}.assembly_summary.txt'
+        good = 'data/{D}.assembly_summary.txt',
+        bad = 'data/{D}.assembly_summary_historical.txt',
     shell: """
-        curl -L https://ftp.ncbi.nlm.nih.gov/genomes/genbank/{wildcards.D}/assembly_summary.txt > {output}
+        curl -L https://ftp.ncbi.nlm.nih.gov/genomes/genbank/{wildcards.D}/assembly_summary.txt > {output.good}
+        curl -L https://ftp.ncbi.nlm.nih.gov/genomes/genbank/{wildcards.D}/assembly_summary_historical.txt > {output.bad}
     """
 
 rule genome_assembly_summary:
     input:
-        'data/{D}.assembly_summary.txt'
+        good = 'data/{D}.assembly_summary.txt',
+        bad = 'data/{D}.assembly_summary_historical.txt',
     output:
-        'data/{D}.assembly_summary.genome.txt'
+        good = 'data/{D}.assembly_summary.genome.txt',
+        bad = 'data/{D}.assembly_summary_historical.genome.txt',
     shell: """
-        awk -F "\t" '$12=="Complete Genome" && $11=="latest" {print}' {input} > {output}
+        awk -F "\t" '$12=="Complete Genome" && $11=="latest" {print}' {input.good} > {output.good}
+        awk -F "\t" '$12=="Complete Genome" && $11=="latest" {print}' {input.bad} > {output.bad}
     """
 
 rule make_idents:
@@ -94,7 +87,6 @@ rule download_sigs_to_manifest:
     output: "scripts/sigs-to-manifest.py"
     shell:
         "curl -L https://raw.githubusercontent.com/sourmash-bio/database-examples/main/sigs-to-manifest.py > {output}"
-
 
 rule make_database_check:
     input:
