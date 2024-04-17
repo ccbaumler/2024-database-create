@@ -121,12 +121,12 @@ def main():
     p.add_argument('-u', '--updated-version', help='Links to gather the updated versions of genomes')
     p.add_argument('-m', '--missing-genomes', help='Output a text file where each line is a missing genome from old manifest when compared to current database')
     p.add_argument('-a', help='the Genbank assembly summary text file')
-    p.add_argument('-h', help='the Genbank assembly summary history text file')
+    p.add_argument('-b', help='the Genbank assembly summary history text file')
 
     args = p.parse_args()
 
-    good_doc, good_idents, good_idents_no_version = load_assembly_summary(args.t)
-    bad_doc, bad_idents, bad_idents_dict = load_historical_summary(args.s)
+    good_doc, good_idents, good_idents_no_version = load_assembly_summary(args.a)
+    bad_doc, bad_idents, bad_idents_dict = load_historical_summary(args.b)
 
     old_mf = manifest.BaseCollectionManifest.load_from_filename(args.old_mf)
 
@@ -138,11 +138,11 @@ def main():
     n_changed_version = len(updated_version_list)
     n_suspect_suspension = n_removed - n_changed_version
 
-    creat_time = time.ctime(os.path.getctime(args.t))
-    mod_time = time.ctime(os.path.getmtime(args.t))
+    creat_time = time.ctime(os.path.getctime(args.a))
+    mod_time = time.ctime(os.path.getmtime(args.a))
 
     print(f"\n\nFrom genome assemblies database:")
-    print(f"Loaded {len(good_idents)} identifiers from '{args.t}'")
+    print(f"Loaded {len(good_idents)} identifiers from '{args.a}'")
     print(f"(and loaded {len(good_idents_no_version)} identifiers without version number)")
     print(f"File assembly database created on {creat_time}")
     print(f"File assembly database last modified {mod_time}")
@@ -150,7 +150,7 @@ def main():
     print(f"\nFrom '{args.old_mf}':")
     print(f"Kept {len(keep_rows)} of {len(old_mf)} identifiers.")
 
-    print(f"\nFrom '{args.s}':")
+    print(f"\nFrom '{args.b}':")
     print(f"Kept {len(bad_idents)} of {len(bad_idents)} identifiers.")
 
     print(f"\nNew manifest '{args.output}':")

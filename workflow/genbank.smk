@@ -19,28 +19,42 @@ DOMAINS=['archaea',
          'viral']
 
 TAG='latest'
-DATABASES = ['/group/ctbrowngrp/irber/data/wort-data/wort-genomes/sigs']
+
 KSIZES=[21,31,51]
 LOGS='logs'
+DB_DATES = ['2022.03',]
+DATABASES = [f'genbank-{date}-{domain}-k{ksize}.zip'
+             for date in DB_DATES
+             for domain in DOMAINS
+             for ksize in KSIZES]
 
 rule all:
     input:
-        expand("data/{D}.missing.csv", D=DOMAINS),
-        expand("data/{D}.manifest.csv", D=DOMAINS),
+        #expand("data/{D}.missing.csv", D=DOMAINS),
+#        expand("genbank-{dates}-{D}-k{k}.zip", dates=DB_DATES, D=DOMAINS, k=KSIZES),
+        expand("../dbs/genbank-{d}-{D}-k{k}.zip", d=DATE, D=DOMAINS, k=KSIZES),
+        expand("data/{D}.{k}.mf.clean.csv", D=DOMAINS, k=KSIZES),
         expand("data/{D}.lineages.csv", D=DOMAINS),
 
-rule build:
+rule build_genbank:
     input:
-        expand("data/
-        expand("data/genbank-latest-{D}-k{k}.zip", D=DOMAINS, k=KSIZES)
+        expand("data/genbank-{d}-{D}-k{k}.zip", d=DATE, D=DOMAINS, k=KSIZES),
 
-rule check:
+rule clean_genbank:
     input:
-        expand("data/genbank-latest-{D}-k{k}.zip.check", D=DOMAINS, k=KSIZES)
+        expand("../dbs/genbank-{d}-{D}-k{k}.clean.zip", d=DATE, D=DOMAINS, k=KSIZES),
 
-rule tax:
+rule missing_genbank:
     input:
-        expand("data/{D}.lineages.csv", D=DOMAINS)
+        expand("../dbs/genbank-{d}-{D}-k{k}.missing.zip", d=DATE, D=DOMAINS, k=KSIZES),
+
+rule check_genbank:
+    input:
+        expand("data/genbank-{d}-{D}-k{k}.zip.check", d=DATE, D=DOMAINS, k=KSIZES),
+
+rule tax_genbank:
+    input:
+        expand("data/{D}.lineages.csv", D=DOMAINS),
 
 rule download_assembly_summary:
     output:
@@ -51,133 +65,104 @@ rule download_assembly_summary:
         curl -L https://ftp.ncbi.nlm.nih.gov/genomes/genbank/{wildcards.D}/assembly_summary_historical.txt > {output.bad}
     """
 
-rule genome_assembly_summary:
-    input:
-        good = 'data/{D}.assembly_summary.txt',
-        bad = 'data/{D}.assembly_summary_historical.txt',
+rule get_ss_db:
     output:
-        good = 'data/{D}.assembly_summary.genome.txt',
-        bad = 'data/{D}.assembly_summary_historical.genome.txt',
-    shell: """
-        awk -F "\t" '$12=="Complete Genome" && $11=="latest" {print}' {input.good} > {output.good}
-        awk -F "\t" '$12=="Complete Genome" && $11=="latest" {print}' {input.bad} > {output.bad}
-    """
-
-rule make_idents:
-    input:
-        'data/{D}.assembly_summary.txt'
-    output:
-        "data/{D}.idents.csv"
-    shell: """
-        echo ident > {output}
-        cut -f1 {input} | grep -v ^# >> {output}
-    """
-
-rule make_genome_idents:
-    input:
-        'data/{D}.assembly_summary.genome.txt'
-    output:
-        "data/{D}.idents.genome.csv"
-    shell: """
-        echo ident > {output}
-        cut -f1 {input} | grep -v ^# >> {output}
-    """
-
-rule download_sigs_to_manifest:
-    output: "scripts/sigs-to-manifest.py"
-    shell:
-        "curl -L https://raw.githubusercontent.com/sourmash-bio/database-examples/main/sigs-to-manifest.py > {output}"
-
-rule make_database_check:
-    input:
-        script = "scripts/sigs-to-manifest.py",
-    output:
-        txt = f"data/{DATE}-wort-sigs.txt",
-        manifest = f"data/{DATE}-wort-sigs.sqlmf",
+        DATABASES
     conda: "envs/sourmash.yaml"
     params:
-        databases = DATABASES
+        db_date = DB_DATES
     shell: """
-        current_date=$(date +%Y%m%d)
-
-        if [ -e data/*.sqlmf ]; then
-            previous_manifests=$(find data/ -name "*.sqlmf" -print)
-            closest_manifest=$(echo "$previous_manifests" | sort | head -n 1)
-
-            echo "Closest previous manifest file to today ($current_date):"
-            echo "$closest_manifest"
-
-            closest_date=$(basename "$closest_manifest" | cut -d'-' -f1)
-
-            if [ $current_date = $closest_date ]; then
-                echo "Today's date matches previous manifest!"
-                echo "Manifest will not be updated."
-                exit 0
+        for db_file in {output}; do
+            echo "Checking if $db_file exists..."
+            if [ -e /group/ctbrowngrp/sourmash-db/genbank-{params.db_date}/$db_file ]; then
+    
+                echo "$db_file exists!"
+                echo "Linking existing file to $(pwd)"
+    
+                ln -s /group/ctbrowngrp/sourmash-db/genbank-{params.db_date}/$db_file $(pwd)/$db_file
+            else
+    
+                echo "$db_file does not exist!"
+                echo "Downloading file to $(pwd)"
+    
+                wget -O $db_file https://farm.cse.ucdavis.edu/~ctbrown/sourmash-db/genbank-{params.db_date}/$db_file
             fi
-
-            echo "Creating text file of all wort signatures on Farm" 
-            find {params.databases} -type f > {output.txt}
-
-            echo "Updating the manifest file to current date with new content"
-            python scripts/sigs-to-manifest.py \
-                   --previous $closest_manifest --merge -F sql \
-                   -o {output.manifest} {output.txt}
-
-            chmod a-w $closest_manifest
-
-        else
-            find {params.databases} -type f > {output.txt}
-
-            python scripts/sigs-to-manifest.py \
-                 -F sql -o {output.manifest} {output.txt}
-        fi
+        done
     """
 
-rule picklist_check:
-    input:
-        database = f"data/{DATE}-wort-sigs.sqlmf",
-        picklist = "data/{D}.idents.csv",
-    output:
-        missing = "data/{D}.missing.csv",
-        manifest = "data/{D}.manifest.csv",
-    conda: "envs/sourmash.yaml"
-    log: f"{LOGS}/{{D}}.picklist-check.log"
-    benchmark: f"{LOGS}/{{D}}.picklist-check.benchmark"
-    params:
-        databases = DATABASES
+# Does this need to be updated because some scripts are not on main branches?
+rule download_update_sourmash_dbs:
+    output: "scripts/update_sourmash_dbs.py"
     shell: """
-        sourmash sig check --picklist {input.picklist}:ident:ident \
-            {input.database} --output-missing {output.missing} \
-            --save-manifest {output.manifest} 2> {log}
-        touch {output.missing}
+        curl -L "https://raw.githubusercontent.com/ccbaumler/2024-database-create/manifests/workflow/scripts/update_sourmash_dbs.py" > {output}
     """
 
-rule build_zip:
-    input:
-        databases = DATABASES,
-        manifest = "data/{D}.manifest.csv",
-    output:
-        "data/genbank-latest-{D}-k{k}.zip"
-    conda: "envs/sourmash.yaml"
-    log: f"{LOGS}/{{D}}-{{k}}.build-zip.log"
-    benchmark: f"{LOGS}/{{D}}-{{k}}.build-zip.benchmark"
+rule manifest_manifest:
+    input: DATABASES,
+    output: "data/{D}.{k}.mf.csv",
+    conda: "envs/sourmash.yaml",
     shell: """
-        sourmash sig cat {input.manifest} -k {wildcards.k} -o {output} 2> {log}
+        #processed_d=()
+        for db_file in {input}; do
+            if [[ $db_file == *{wildcards.D}*{wildcards.k}* ]]; then  #&& ! " ${{processed_d[@]}} " =~ [[:space:]]{wildcards.D}[[:space:]] ]]; then
+                sourmash sig manifest -o {output} $db_file --no-rebuild
+         #       processed_d+=({wildcards.D})
+            fi
+        done
     """
 
-rule picklist_confirm:
+rule cleanse_manifest:
     input:
-        picklist = "data/{D}.idents.csv",
-        zip = "data/genbank-latest-{D}-k{k}.zip",
+        script = "scripts/update_sourmash_dbs.py",
+        good = "data/{D}.assembly_summary.txt",
+        bad = "data/{D}.assembly_summary_historical.txt",
+        manifest = "data/{D}.{k}.mf.csv",
     output:
-        confirm = touch("genbank-latest-{D}-k{k}.zip.check")
-    conda: "envs/sourmash.yaml"
-    log: f"{LOGS}/{{D}}-k{{k}}.picklist-confirm.log"
-    benchmark: f"{LOGS}/{{D}}-k{{k}}.picklist-confirm.benchmark"
+        clean = "data/{D}.{k}.mf.clean.csv",
+        reversion = "data/{D}.{k}.updated-versions.txt",
+        report = "data/{D}.{k}.report.txt",
+        missing = "data/{D}.{k}.missing-genomes.txt",
+    conda: "envs/sourmash.yaml",
     shell: """
-        sourmash sig check --picklist {input.picklist}:ident:ident \
-            {input.zip} --fail 2> {log}
+        {input.script} {input.manifest} -a {input.good} -b {input.bad} -o {output.clean} --updated-version {output.reversion} --report {output.report} --missing-genomes {output.missing}
     """
+
+rule picklist_clean:
+    input:
+        clean = "data/{D}.{k}.mf.clean.csv",
+        dbs = ["genbank-{0}-{{D}}-k{{k}}.zip".format(dates) for dates in DB_DATES],
+    output:
+        woohoo = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
+    conda: "envs/sourmash.yaml"
+    resources:
+        mem_mb = 8000,
+        time_min = 30
+    #params:
+    #    og_db = lambda dates, D, k: f"genbank-{date}-{D}-k{k}.zip" for date in DB_DATES,
+    shell:'''
+        echo "Cleaning {input.dbs}..."
+        sourmash sig extract --picklist {input.clean}::manifest {input.dbs} -o {output.woohoo}
+        echo "{input.dbs} cleaned and stored as {output.woohoo}"
+    '''
+
+rule gather_sketch_missing:
+    input:
+        reversion = "data/{D}.{k}.updated-versions.txt",
+    output:
+        woohoo = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
+    conda: "envs/sourmash.yaml"
+    resources:
+        mem_mb = 8000,
+        time_min = 30
+    #params:
+    #    og_db = lambda dates, D, k: f"genbank-{date}-{D}-k{k}.zip" for date in DB_DATES,
+    shell:'''
+        echo "Cleaning {input.dbs}..."
+        sourmash sig extract --picklist {input.clean}::manifest {input.dbs} -o {output.woohoo}
+        echo "{input.dbs} cleaned and stored as {output.woohoo}"
+    '''
+
+
 
 # taxonomy rules, from https://github.com/ctb/2022-assembly-summary-to-lineages
 rule download_ncbi_utils:
