@@ -103,14 +103,21 @@ def filter_manifest(old_mf, good_idents, good_idents_no_version, bad_idents_dict
 
 def write_links_output(gather_ident_list, links):
     total = len(gather_ident_list)
+    
+    #accession_list = [accession[0] for accession in gather_ident_list]
     with open(links, 'wt') as fp:
         for n, row in enumerate(gather_ident_list):
             if n % 10 == 0:
                 print(f'...Writing {links}: Line {n} of {total}', end='\r', flush=True)
             url = extract_urls(row)
+            accession = row[0]
+            organism_name = row[7]
+            infraspecific_name = row[8]
+            asm_name = row[15]
             if url:
-                print(url, file=fp)
-        print(f'...Wrote {links}: Line {n} of {total}  ')
+                line = f"{accession}\t{url}\t{organism_name}\t{infraspecific_name}\t{asm_name}\n"
+                fp.write(line)
+        print(f'...Wrote {links}: Line {n+1} of {total}  ')
 
 def main():
     p = argparse.ArgumentParser()
