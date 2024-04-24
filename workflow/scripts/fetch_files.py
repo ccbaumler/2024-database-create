@@ -84,9 +84,9 @@ def sketch_file(input_fp, row, output_dir, ksize=[21,31,51], num_hashes=0, scale
         elements.append(organism_name)
     if infraspecific_name != 'na':
         elements.append(infraspecific_name)
-    
+
     result = ' '.join(elements)
-    
+
     if asm_name != 'na':
         result = result + ', ' + asm_name
 
@@ -141,6 +141,13 @@ def fetch_files(urls, formats, output_dir, remove_files, genomes_only):
 
         accession = row[0]
         sketch_out = f"{output_dir}/{accession}.sig"
+
+        if remove_files and os.path.exists(sketch_out):
+            print(f'Skipping {sketch_out}, already sketched')
+            existing += 1
+            continue
+        #elif remove_files and not os.path.exists(sketch_out):
+        #    sketch_file(fpathout, row, output_dir)  # Sketch the fetched file
 
         if all(done):
             existing += len(formats)
@@ -231,7 +238,7 @@ def fetch_files(urls, formats, output_dir, remove_files, genomes_only):
             #          f'for {asm_full_name} assembly file ({md5sums[fnamein]}): "{fpathin}"')
             #    print(f'[WARNING] Skipping {asm_full_name} assembly file: "{fpathin}"')
             #    continue
-            
+
             tmpfpathout = f'{output_dir}/{fnamein}'
             try:
                 with open(tmpfpathout, 'wb') as f:
@@ -240,7 +247,7 @@ def fetch_files(urls, formats, output_dir, remove_files, genomes_only):
                 print(f'[ERROR] Cannot save to "{fpathout}" the {asm_full_name} assembly file: "{fpathin}"')
                 print(f'[WARNING] Skipping {asm_full_name} assembly file: "{fpathin}"')
                 continue
-            
+
             try:
                 os.rename(tmpfpathout, fpathout)
             except:
@@ -320,4 +327,4 @@ if __name__ == '__main__':
 #formats = ["fasta", "gff"]
 #output_dir = "output"
 #fetch_genomes(urls, formats, output_dir)
-#
+

@@ -1,7 +1,8 @@
 ###
 # This workflow will create a genbank database for sourmash from the HPC cluster at UCDavis.
+#
 # To run:
-# snakemake -s genbank -j 1 --use-conda
+# snakemake -s genbank.smk -j 1 --use-conda
 #
 # Note: the first run may take a few hours to build the wort sqlmf
 # try linking an old sqlmf to skip some time and effort
@@ -12,16 +13,13 @@ import time
 
 DATE = time.strftime("%Y%m%d")
 
-#DOMAINS=['archaea',
-#         'fungi',
-#         'protozoa',
-#         'bacteria',
-#         'viral']
-
-TAG='latest'
-
 DOMAINS=['archaea',
-         'protozoa',]
+         'fungi',
+         'protozoa',
+         'bacteria',
+         'viral']
+
+#TAG='latest'
 
 KSIZES=[21,31,51]
 LOGS='logs'
@@ -132,12 +130,13 @@ rule cleanse_manifest:
         {input.script} {input.manifest} -a {input.good} -b {input.bad} -o {output.clean} --updated-version {output.reversion} --report {output.report} --missing-genomes {output.missing}
     """
 
-rule picklist_clean_db:
+# checkpoint to let snakemake know not to continue until checkpoint is complete?
+checkpoint picklist_clean_db:
     input:
         clean = "data/{D}.{k}.mf.clean.csv",
         dbs = ["genbank-{0}-{{D}}-k{{k}}.zip".format(dates) for dates in DB_DATES],
     output:
-        woohoo = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
+        woohoo = protected("../dbs/genbank-{d}-{D}-k{k}.clean.zip"),
     conda: "envs/sourmash.yaml"
     resources:
         mem_mb = 8000,
@@ -162,14 +161,87 @@ rule check_txt_reversioned:
         {input.script} $files -o {output.solo}
     """
 
-# checkpoint to let snakemake know not to continue until checkpoint is complete?
-checkpoint gather_sketch_reversioned:
+def gather_sketch_sigs():
+    sigs_files = []
+    for d in DOMAINS:
+        with open(f'data/{d}.updated-versions.txt', 'rt') as fp:
+            #sigs_files = fp.readlines()[0]
+            for line in fp:
+                parts = line.strip().split()
+                if parts:
+                    file_name = f'versioned_sigs/{d}/{parts[0]}.sig'
+                    sigs_files.append(file_name)
+#    print(sigs_files)
+    return sigs_files
+sigs = gather_sketch_sigs()
+
+rule gather_sketch_reversioned:
     input:
         script = "scripts/fetch_files.py",
         reversion = "data/{D}.updated-versions.txt",
     output:
-        dir = directory("versioned_sigs/{D}/"),
-        missing = touch("data/{D}.missing_links.old.txt"),
+        #sigs,
+        missing = "data/{D}.missing_links.update.txt",
+    conda: "envs/sourmash.yaml"
+    resources:
+        mem_mb = 8000,
+        time_min = 30,
+    params:
+        dir = lambda w: 'versioned_sigs/' + w.D
+    shell:'''
+        # full directory path not being made by snakemake, why?
+        if [ ! -d {params.dir} ]; then
+            echo "{params.dir} does not exist?!"
+            mkdir -p {params.dir}
+        else
+            echo "{params.dir} does exist!!!"
+            echo "Using the existing {params.dir} for sigs."
+        fi
+        # for each original genome in our database with an updated version, sketch the new file!!!
+        # create an output file that has any missed file!
+        # abund set to true in sketch function (need to create toggle for this)
+        # create -f filetype variable for protein sequence db
+        {input.script} -i {input.reversion} -f fna -o {params.dir} -m {output.missing} -r
+        touch {output.missing}
+    '''
+
+# checkpoint to let snakemake know not to continue until checkpoint is complete?
+checkpoint cat_to_clean_reversioned:
+    input:
+        dir = "versioned_sigs/{D}/",
+        db = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
+        missing = "data/{D}.missing_links.update.txt",
+    output:
+        woohoo = protected("../dbs/genbank-{d}-{D}-k{k}.update.zip"),
+    conda: "envs/sourmash.yaml"
+    resources:
+        mem_mb = 8000,
+        time_min = 30
+    shell: """
+        sourmash sig cat {input.dir} {input.db} -k {wildcards.k} -o {output.woohoo}
+    """
+
+rule check_txt_missing:
+    input:
+        reversion = expand("data/{D}.{k}.missing-genomes.txt", D=DOMAINS, k=KSIZES),
+        script = "scripts/check_txt_files.py",
+    output:
+        solo = "data/{D}.missing-genomes.txt",
+    shell: """
+        files=""
+        for file in "data/{wildcards.D}.*.missing-genomes.txt"; do
+            files+=" $file"
+        done
+        {input.script} $files -o {output.solo}
+    """
+
+rule gather_sketch_missing:
+    input:
+        script = "scripts/fetch_files.py",
+        reversion = "data/{D}.missing-genomes.txt",
+    output:
+        dir = protected(directory("new_sigs/{D}/")), #Protect in case of rerun-incomplete, without will delete the entire dir. Cannot use directory(), it seems to force the deletion of incomplete directories(?)
+        missing = touch("data/{D}.missing_links.new.txt"),
     conda: "envs/sourmash.yaml"
     resources:
         mem_mb = 8000,
@@ -179,6 +251,8 @@ checkpoint gather_sketch_reversioned:
         if [ ! -d {output.dir} ]; then
             echo "{output.dir} does not exist?!"
             mkdir -p {output.dir}
+        else
+            echo "{output.dir} does exist!!!"
         fi
         # for each original genome in our database with an updated version, sketch the new file!!!
         # create an output file that has any missed file!
@@ -187,12 +261,12 @@ checkpoint gather_sketch_reversioned:
         {input.script} -i {input.reversion} -f fna -o {output.dir} -m {output.missing} -r
     '''
 
-rule cat_to_clean_reversioned:
+rule cat_to_clean_missing:
     input:
-        dir = "versioned_sigs/{D}/",
+        dir = "new_sigs/{D}/",
         db = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
     output:
-        woohoo = "../dbs/genbank-{d}-{D}-k{k}.update.zip",
+        woohoo = "../dbs/genbank-{d}-{D}-k{k}.zip",
     conda: "envs/sourmash.yaml"
     resources:
         mem_mb = 8000,
@@ -201,58 +275,9 @@ rule cat_to_clean_reversioned:
         sourmash sig cat {input.dir} {input.db} -k {wildcards.k} -o {output.woohoo}
     """
 
-#rule check_txt_missing:
-#    input:
-#        reversion = expand("data/{D}.{k}.missing-genomes.txt", D=DOMAINS, k=KSIZES),
-#        script = "scripts/check_txt_files.py",
-#    output:
-#        solo = "data/{D}.missing-genomes.txt",
-#    shell: """
-#        files=""
-#        for file in "data/{wildcards.D}.*.missing-genomes.txt"; do
-#            files+=" $file"
-#        done
-#        {input.script} $files -o {output.solo}
-#    """
-#
-## checkpoint to let snakemake know not to continue until checkpoint is complete?
-#checkpoint gather_sketch_missing:
-#    input:
-#        script = "scripts/fetch_files.py",
-#        reversion = "data/{D}.missing-genomes.txt",
-#    output:
-#        dir = directory("new_sigs/{D}/"),
-#        missing = touch("data/{D}.missing_links.new.txt"),
-#    conda: "envs/sourmash.yaml"
-#    resources:
-#        mem_mb = 8000,
-#        time_min = 30
-#    shell:'''
-#        # full directory path not being made by snakemake, why?
-#        if [ ! -d {output.dir} ]; then
-#            echo "{output.dir} does not exist?!"
-#            mkdir -p {output.dir}
-#        fi
-#        # for each original genome in our database with an updated version, sketch the new file!!!
-#        # create an output file that has any missed file!
-#        # abund set to true in sketch function (need to create toggle for this)
-#        # create -f filetype variable for protein sequence db
-#        {input.script} -i {input.reversion} -f fna -o {output.dir} -m {output.missing} -r
-#    '''
-#
-#rule cat_to_clean_reversioned:
-#    input:
-#        dir = "new_sigs/{D}/",
-#        db = "../dbs/genbank-{d}-{D}-k{k}.clean.zip",
-#    output:
-#        woohoo = "../dbs/genbank-{d}-{D}-k{k}.zip",
-#    conda: "envs/sourmash.yaml"
-#    resources:
-#        mem_mb = 8000,
-#        time_min = 30
-#    shell: """
-#        sourmash sig cat {input.dir} {input.db} -k {wildcards.k} -o {output.woohoo}
-#    """
+
+
+### create a report with sourmash sig summarize for the databases... and sourmash compare(?)
 
 # taxonomy rules, from https://github.com/ctb/2022-assembly-summary-to-lineages
 rule download_ncbi_utils:
