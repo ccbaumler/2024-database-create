@@ -62,13 +62,14 @@ def read_in_txt(file):
         r = csv.reader(fp, delimiter='\t')
         for row in r:
             sketch_info.append(row)
+    print(f"Fetching {len(sketch_info)} files...")
     return sketch_info
 
 def sketch_name(accession, ext='sig'):
     sketch_fp = accession + '.' + ext
     return sketch_fp
 
-def sketch_file(input_fp, row, output_dir, ksize=[21,31,51], num_hashes=0, scale=1000, abund=False):
+def sketch_file(input_fp, row, output_dir, ksize=[21,31,51], num_hashes=0, scale=1000, abund=True):
     
     accession = row[0]
     organism_name = row[2]
@@ -110,7 +111,7 @@ def sketch_file(input_fp, row, output_dir, ksize=[21,31,51], num_hashes=0, scale
 
     print(f"Signature save to {sketch_out}")
 
-def fetch_genomes(urls, formats, output_dir, remove_files, genomes_only):
+def fetch_files(urls, formats, output_dir, remove_files, genomes_only):
     '''Fetches genomes by sending FTP requests via urllib. Arguments:
        urls       -- a list of URLs pointing to the genomes
        formats    -- formats of data to be retrieved
@@ -280,7 +281,7 @@ def fetch_genomes(urls, formats, output_dir, remove_files, genomes_only):
     return not_found
 
 def main():
-    p = argparse.ArgumentParser()
+    p = argparse.ArgumentParser(description='Fetch and sketch the sequence files of the GenBank archive with assembly summary links')
     p.add_argument('-i', '--input', help='The input file containing only the https links to NCBI')
     p.add_argument('-f', '--format', type=str, nargs='+', default=['fna'], choices=assembly_formats.keys(), help='The file format you would like to acquire')
     p.add_argument('-o', '--output-dir', help='The location to send the downloaded files')
@@ -295,7 +296,7 @@ def main():
     #for line in range(len(sketch_info)):
     #    print(sketch_info[line])
 
-    missing_files = fetch_genomes(urls = sketch_info, formats = args.format, output_dir = args.output_dir, remove_files=args.remove_files, genomes_only=args.genomes_only)
+    missing_files = fetch_files(urls = sketch_info, formats = args.format, output_dir = args.output_dir, remove_files=args.remove_files, genomes_only=args.genomes_only)
 
     if args.missing_files:
         if len(missing_files) > 0:
