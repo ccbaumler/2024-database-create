@@ -59,7 +59,7 @@ md5sums_fname = 'md5checksums.txt'
 def read_in_txt(file):
     sketch_info = []
     with open(file, 'rt') as fp:
-        r = csv.reader(fp, delimiter='\t')
+        r = csv.reader(fp, delimiter=',')
         for row in r:
             sketch_info.append(row)
     print(f"Fetching {len(sketch_info)} files...")
@@ -72,23 +72,24 @@ def sketch_name(accession, ext='sig'):
 def sketch_file(input_fp, row, output_dir, ksize=[21,31,51], num_hashes=0, scale=1000, abund=True):
     
     accession = row[0]
-    organism_name = row[2]
-    infraspecific_name = row[3]
-    asm_name = row[4]
-
-    elements = []
-
-    if accession != 'na':
-        elements.append(accession)
-    if organism_name != 'na':
-        elements.append(organism_name)
-    if infraspecific_name != 'na':
-        elements.append(infraspecific_name)
-
-    result = ' '.join(elements)
-
-    if asm_name != 'na':
-        result = result + ', ' + asm_name
+    result = row[1]
+#    organism_name = row[2]
+#    infraspecific_name = row[3]
+#    asm_name = row[4]
+#
+#    elements = []
+#
+#    if accession != 'na':
+#        elements.append(accession)
+#    if organism_name != 'na':
+#        elements.append(organism_name)
+#    if infraspecific_name != 'na':
+#        elements.append(infraspecific_name)
+#
+#    result = ' '.join(elements)
+#
+#    if asm_name != 'na':
+#        result = result + ', ' + asm_name
 
     mh_list = []
     for k in ksize:
@@ -124,7 +125,7 @@ def fetch_files(urls, formats, output_dir, remove_files, genomes_only):
 
     for row in urls:
 
-        url = row[1]
+        url = row[2]
         if url.startswith('https://'):
             url = 'ftp://' + url[8:]
         parts = url.rstrip('/').split('/')

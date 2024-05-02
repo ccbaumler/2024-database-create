@@ -106,17 +106,37 @@ def write_links_output(gather_ident_list, links):
     
     #accession_list = [accession[0] for accession in gather_ident_list]
     with open(links, 'wt') as fp:
+        header = ["accession","name","url","organism_name","infraspecific_name","asm_name"]
+        fp.write(','.join(header) + '\n')
         for n, row in enumerate(gather_ident_list):
+
             if n % 10 == 0:
                 print(f'...Writing {links}: Line {n} of {total}', end='\r', flush=True)
+
             url = extract_urls(row)
             accession = row[0]
             organism_name = row[7]
             infraspecific_name = row[8]
             asm_name = row[15]
+
+            elements = []
+
+            if accession != 'na':
+                elements.append(accession)
+            if organism_name != 'na':
+                elements.append(organism_name)
+            if infraspecific_name != 'na':
+                elements.append(infraspecific_name)
+            if asm_name != 'na':
+                elements.append(asm_name)
+
+            name = ' '.join(elements)
+
             if url:
-                line = f"{accession}\t{url}\t{organism_name}\t{infraspecific_name}\t{asm_name}\n"
+                
+                line = f"{accession},{name},{url},{organism_name},{infraspecific_name},{asm_name}\n"
                 fp.write(line)
+
         print(f'...Wrote {links}: Line {n+1} of {total}  ')
 
 def main():
@@ -125,8 +145,8 @@ def main():
     p.add_argument('old_mf', nargs='?', help='existing sourmash database manifest')
     p.add_argument('--report', nargs='?', help='details of removed etc., for humans')
     p.add_argument('-o', '--output', nargs='?', help='manifest cleansed of the impure')
-    p.add_argument('-u', '--updated-version', help='Links to gather the updated versions of genomes')
-    p.add_argument('-m', '--missing-genomes', help='Output a text file where each line is a missing genome from old manifest when compared to current database')
+    p.add_argument('-u', '--updated-version', help='Output a CSV file where each line is the updated versions of genomes existing in old manifest')
+    p.add_argument('-m', '--missing-genomes', help='Output a CSV file where each line is a missing genome from old manifest when compared to current database')
     p.add_argument('-a', help='the Genbank assembly summary text file')
     p.add_argument('-b', help='the Genbank assembly summary history text file')
 
