@@ -114,10 +114,12 @@ def write_links_output(gather_ident_list, links):
                 print(f'...Writing {links}: Line {n} of {total}', end='\r', flush=True)
 
             url = extract_urls(row)
-            accession = row[0]
-            organism_name = row[7]
-            infraspecific_name = row[8]
-            asm_name = row[15]
+            if url is not None:
+                url = f'"{url}"' if ',' in url else url
+            accession = f'"{row[0]}"' if ',' in row[0] else row[0]
+            organism_name = f'"{row[7]}"' if ',' in row[7] else row[7]
+            infraspecific_name = f'"{row[8]}"' if ',' in row[8] else row[8]
+            asm_name = f'"{row[15]}"' if ',' in row[15] else row[15]
 
             elements = []
 
@@ -128,12 +130,13 @@ def write_links_output(gather_ident_list, links):
             if infraspecific_name != 'na':
                 elements.append(infraspecific_name)
             if asm_name != 'na':
-                elements.append(asm_name)
-
-            name = ' '.join(elements)
+               elements.append(asm_name)
+                
+            name = ' '.join([e.strip('"') for e in elements])
+            if ',' in name:
+                name = f'"{name}"'
 
             if url:
-                
                 line = f"{accession},{name},{url},{organism_name},{infraspecific_name},{asm_name}\n"
                 fp.write(line)
 
