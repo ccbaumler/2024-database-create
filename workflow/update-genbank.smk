@@ -2,7 +2,7 @@
 # This workflow will create a genbank database for sourmash from the HPC cluster at UCDavis.
 #
 # To run:
-# snakemake -s update-genbank.smk -j 151515151515151515151515151515 --use-conda --rerun-incomplete --resources allowed_jobs=100
+# snakemake -s update-genbank.smk -j 15 --use-conda --rerun-incomplete --resources allowed_jobs=100
 #
 # Note: the first run may take a few hours to build the wort sqlmf
 # try linking an old sqlmf to skip some time and effort
@@ -11,8 +11,7 @@
 
 import time
 
-#DATE = time.strftime("%Y%m%d")
-DATE="20240503",
+DATE = time.strftime("%Y%m%d")
 
 DOMAINS=['archaea',
          'fungi',
