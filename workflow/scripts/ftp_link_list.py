@@ -6,29 +6,69 @@ import argparse
 
 
 def list_files(ftp, remotedir, host, server):
-    try:
-        print(remotedir)
-        ftp.cwd(remotedir)
-        print(f"Listing directory: {remotedir}")
+    count = 10
+    tries = count
+    file_list = []
+    dir_list = []
 
-        # List files and directories in the current directory
-        files = ftp.nlst()
-        file_list = []
-        dir_list = []
-        # Iterate through each item in the current directory
-        for entry in files:
-            if '.' not in entry:  # Only consider directories
-                #subdir = remotedir + "/" + entry
-                #print(subdir)
-                print(entry + '/')
-                dir_list.append(entry)
-                #list_dir(ftp, subdir, host)  # Recursively navigate into subdirectories
+    while tries > 0:
+        try:
+            print(remotedir)
+            ftp.cwd(remotedir)
+            print(f"\nListing directory: {remotedir}\n")
+
+            # List files and directories in the current directory
+            files = ftp.nlst()
+
+            # Iterate through each item in the current directory
+            for entry in files:
+                if '.' not in entry:  # Only consider directories
+                    print(entry + '/')  # Print directory names
+                    dir_list.append(entry)
+                else:
+                    print(entry)  # Print file names
+                    file_list.append(entry)
+            
+            # If no exception occurs, break out of the loop
+            break
+        except ftplib.error_perm as e:
+            print(f"Error: {e}")
+            tries -= 1
+            if tries == 0:
+                print("Out of tries. Exiting.")
+                return [], []
             else:
-                print(entry)  # Print file names
-                file_list.append(entry)
-    except ftplib.error_perm as e:
-        print(f"Error: {e}")
+                print(f"Trying again... ({tries} tries left)")
     return file_list, dir_list
+#def list_files(ftp, remotedir, host, server):
+#    count = 10
+#    tries = count
+#
+#    try:
+#        print(remotedir)
+#        ftp.cwd(remotedir)
+#        print(f"Listing directory: {remotedir}")
+#
+#        # List files and directories in the current directory
+#        files = ftp.nlst()
+#        file_list = []
+#        dir_list = []
+#        # Iterate through each item in the current directory
+#        for entry in files:
+#            if '.' not in entry:  # Only consider directories
+#                #subdir = remotedir + "/" + entry
+#                #print(subdir)
+#                print(entry + '/')
+#                dir_list.append(entry)
+#                #list_dir(ftp, subdir, host)  # Recursively navigate into subdirectories
+#            else:
+#                print(entry)  # Print file names
+#                file_list.append(entry)
+#    except ftplib.error_perm as e:
+#        print(f"Error: {e}")
+#
+#        while tries > 0:
+#    return file_list, dir_list
 
 def list_dir(ftp, remotedir, host):
     directories = []

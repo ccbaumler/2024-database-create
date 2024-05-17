@@ -106,7 +106,7 @@ def write_links_output(gather_ident_list, links):
     
     #accession_list = [accession[0] for accession in gather_ident_list]
     with open(links, 'wt') as fp:
-        header = ["accession","name","url","organism_name","infraspecific_name","asm_name"]
+        header = ["accession","name","ftp_path"]#,"organism_name","infraspecific_name","asm_name"]
         fp.write(','.join(header) + '\n')
         for n, row in enumerate(gather_ident_list):
 
@@ -137,7 +137,7 @@ def write_links_output(gather_ident_list, links):
                 name = f'"{name}"'
 
             if url:
-                line = f"{accession},{name},{url},{organism_name},{infraspecific_name},{asm_name}\n"
+                line = f"{accession},{name},{url}\n"#,{organism_name},{infraspecific_name},{asm_name}\n"
                 fp.write(line)
 
         print(f'...Wrote {links}: Line {n+1} of {total}  ')
